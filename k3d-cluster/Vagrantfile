@@ -1,0 +1,49 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/centos7"
+
+  config.vm.box_check_update = true
+
+  # Forwarded port mapping: 8052 -> 8502 for exposed service
+  config.vm.network "forwarded_port", guest: 8502, host: 8502
+  # Forwarded port mapping: 8052 -> 8502 for kubernetes dasboard
+  config.vm.network "forwarded_port", guest: 8503, host: 8503
+
+  # Create a private network, which allows host-only access to the machine
+  # using a specific IP.
+  config.vm.network "private_network", ip: "192.168.56.151"
+
+  # Share an additional folder to the guest VM
+  config.vm.synced_folder "./shared", "/vagrant_data"
+
+  # Customize hostname of the guestVM 
+  config.vm.hostname = "k3d-cluster"
+
+  config.vm.provider "virtualbox" do |vb|
+    # Customize the amount of memory on the guest VM:
+    vb.memory = "2048"
+  end
+
+  # Enable provisioning guest VM with shell script
+  config.vm.provision "shell", inline: <<-SHELL
+    yum update -y
+
+    # Install Docker
+    curl -fsSL get.docker.com -o get-docker.sh
+    sh get-docker.sh --mirror Aliyun
+    systemctl enable docker && systemctl start docker
+    # Add vagrant user to docker group (Running docker command without sudo)
+    usermod -aG docker vagrant
+
+    # Install k3d
+    # Reference: https://github.com/rancher/k3d
+    wget -q -O - https://raw.githubusercontent.com/rancher/k3d/main/install.sh | bash
+
+    # Install kubectl
+    curl -LO "https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl"
+    mv kubectl /usr/local/bin/
+    chmod +x /usr/local/bin/kubectl
+  SHELL
+end
